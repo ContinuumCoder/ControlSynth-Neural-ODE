@@ -536,7 +536,7 @@ vmax = mean_val + std_val * 1.75
 
 
 fig = make_subplots(rows=2, cols=3,
-                    column_widths=[0.33, 0.33, 0.33],  # 控制每列的宽度
+                    column_widths=[0.33, 0.33, 0.33], 
                     specs=[[{'type': 'surface', 'colspan': 2}, {'type': 'surface', 'colspan': 2}, None],
                            [{'type': 'surface'}, {'type': 'surface'}, {'type': 'surface'}]],
                     subplot_titles=('Initial Condition', 'Prediction Ground Truth',
@@ -582,7 +582,7 @@ fig.update_layout(    title={
                     },
                     
                     font=dict(
-                        family="Times New Roman, Times, serif",  # 设置字体为Times New Roman
+                        family="Times New Roman, Times, serif",
                         size=17.5,
                         color="black"
                     )          
