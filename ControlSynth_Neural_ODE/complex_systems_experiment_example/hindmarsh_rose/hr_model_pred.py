@@ -605,7 +605,7 @@ with torch.no_grad():
                         zaxis=dict(tickfont=dict(size=13))
                     ),
                     font=dict(
-                        family="Times New Roman, Times, serif",  # 设置字体为Times New Roman
+                        family="Times New Roman, Times, serif",
                         size=18.5,
                         color="black"
                     )           
