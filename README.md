@@ -60,8 +60,8 @@ To get started with the CSODEs experiments, follow these steps:
    As an example, navigate to the directory containing the preliminary experiment script and execute:
 
    ```bash
-   cd ControlSynth_Neural_ODE/preliminary_experiment_example/latent_ode
-   python controlsynth_latent_ode.py
+   cd ControlSynth_Neural_ODE/preliminary_experiment_example
+   python spirals_experiment.py
    ```
 
    This script will run the experiment using the ControlSynth Latent ODE model and output the results. It serves as an example to demonstrate how to execute the experiments in this repository.
