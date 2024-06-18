@@ -64,7 +64,7 @@ To get started with the CSODEs experiments, follow these steps:
    python spirals_experiment.py
    ```
 
-   This script will run the experiment using the ControlSynth Latent ODE model and output the results. It serves as an example to demonstrate how to execute the experiments in this repository.
+   This script will run the experiment using the ControlSynth ODE model and output the results. It serves as an example to demonstrate how to execute the experiments in this repository.
 
 ## Features
 
