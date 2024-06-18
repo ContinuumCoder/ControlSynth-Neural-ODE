@@ -30,7 +30,7 @@ def generate_spiral2d(nspiral=512,
                       start=0.,
                       stop=6 * np.pi,  # approximately equal to 6pi
                     #   noise_std=2e-1,
-                      noise_std=2e-1,
+                      noise_std=1.5e-1,
                       a=0.,
                       b=1.):
     """Parametric formula for 2d spiral is `r = a + b * theta`.
@@ -91,7 +91,7 @@ def generate_spiral2d(nspiral=512,
 def euler_ode_solver(func, y0, t, g=None):
     dt = t[1] - t[0]
     y = y0
-    ys = [y0] 
+    ys = [y0]
 
     for i in range(len(t) - 1):
         u = torch.zeros_like(y)
@@ -199,16 +199,16 @@ if DATASET_VIS:
 
 
 input_dim = 2
-hidden_dim = 128
-num_layers = 1
-cs_hidden_dim = 96
-cs_num_layers = 1
-g_hidden_dim = 32
-g_num_layers = 1
+hidden_dim = 64
+num_layers = 2
+cs_hidden_dim = 32
+cs_num_layers = 2
+g_hidden_dim = 52
+g_num_layers = 2
 neural_ode = NeuralODE(input_dim, hidden_dim, num_layers).to(device)
 cs_neural_ode = CSNeuralODE(input_dim, cs_hidden_dim, cs_num_layers, g_hidden_dim, g_num_layers).to(device)
-epochs = 1000
-lr = 1e-2
+epochs = 2000
+lr = 1e-3
 
 neural_ode_path = current_directory + '/neural_ode_noised1.pth'
 cs_neural_ode_path = current_directory + '/cs_neural_ode_noised1.pth'
@@ -278,7 +278,8 @@ def eval_model_1(model, model_name):
     orig_traj0 = orig_trajs[test_spiral_idx]
     mse_loss = np.mean((gt_traj0 - predicted_traj0) ** 2)
     l1_loss = np.mean(np.abs(gt_traj0 - predicted_traj0))
-    print(model_name + f": MSE Loss: {mse_loss}, L1 Loss: {l1_loss}")
+    print("\n" + model_name + f": MSE Loss: {mse_loss}")
+    print(f"L1 Loss: {l1_loss}")
 
     plt.figure(figsize=(8, 8))
     plt.plot(orig_traj0[:, 0], orig_traj0[:, 1], 'g-', label='True Trajectory')
@@ -325,11 +326,12 @@ if not READONLY:
     train_model(cs_neural_ode)
     save_model(cs_neural_ode, cs_neural_ode_path)
 
-
-
 neural_ode = load_model(neural_ode, neural_ode_path)
 cs_neural_ode = load_model(cs_neural_ode, cs_neural_ode_path)
+
+print()
 print_model_parameters(neural_ode, "Neural ODE")
 print_model_parameters(cs_neural_ode, "ControlSynth Neural ODE")
+
 eval_model_1(neural_ode, "Neural ODE")
 eval_model_1(cs_neural_ode, "ControlSynth Neural ODE")
