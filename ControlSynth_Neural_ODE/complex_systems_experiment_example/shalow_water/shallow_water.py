@@ -26,11 +26,12 @@ current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 
 
-solver_path = current_directory + '/solver.py'
+solver_path = current_directory + '/../../src/solver.py'
 spec = importlib.util.spec_from_file_location("solver", solver_path)
 solver_module = importlib.util.module_from_spec(spec)
 sys.modules["solver"] = solver_module
 spec.loader.exec_module(solver_module)
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -315,23 +316,54 @@ class simple_fc_layer(nn.Module):
     
 
 class AugmentedODEFunc(nn.Module):
-    def __init__(self, hidden_dim=hidden_dim, num_layers=num_layers):
+    def __init__(self, hidden_dim, num_layers, input_dim, augment_dim):
         super(AugmentedODEFunc, self).__init__()
-        
-        layers = [nn.Linear(input_dim + augment_dim, hidden_dim), nn.Tanh()]
+        layers = [nn.Linear(input_dim + augment_dim + 1, hidden_dim), nn.Tanh()]
         for _ in range(num_layers - 1):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
             layers.append(nn.Tanh())
-        layers.append(nn.Linear(hidden_dim, input_dim + augment_dim))
-        
+        layers.append(nn.Linear(hidden_dim, input_dim + augment_dim + 1))
         self.net = nn.Sequential(*layers)
+        self.output_dim = input_dim + augment_dim
 
-    def forward(self, t, y):
-        t_vec = torch.ones(y.shape[0], 1).to(device) * t
+    def forward(self, t, z):
+        y = z
+        t_vec = torch.ones(y.shape[0], 1).to(y.device) * t
         t_and_y = torch.cat([t_vec, y], 1)
-        y = self.net(t_and_y)[:, :input_dim-1]
+        out = self.net(t_and_y)
+        out = out[:, :self.output_dim]
+        return out
 
-        return y
+
+class AugmentedNeuralODE(nn.Module):
+    def __init__(self, augment_dim=augment_dim, use_second_order=False):
+        super(AugmentedNeuralODE, self).__init__()
+        self.use_second_order = use_second_order
+        
+        if use_second_order:
+            self.func = SecondOrderAugmentedODEFunc(hidden_dim=int(hidden_dim))
+        else:
+            self.func = AugmentedODEFunc(hidden_dim, num_layers, input_dim-1, augment_dim)
+        
+        self.augment_dim = augment_dim
+
+    def forward(self, y0, t):
+        y_aug = torch.cat([y0, torch.zeros(y0.shape[0], self.augment_dim).to(y0)], dim=1)
+        
+        if self.use_second_order:
+            v_aug = torch.zeros_like(y_aug)
+            z0 = torch.cat((y_aug, v_aug), dim=1)
+        else:
+            z0 = y_aug
+        
+        if USE_BASIC_SOLVER:
+            out = basic_euler_ode_solver(self.func, z0, t)
+        else:
+            out = odeint(self.func, z0, t, method='euler')
+
+        out = out[:, :, :input_dim-1]
+        out = out.view(-1, t.shape[0], input_dim-1)
+        return out
 
 
 class SecondOrderAugmentedODEFunc(nn.Module):
@@ -355,39 +387,6 @@ class SecondOrderAugmentedODEFunc(nn.Module):
         out = self.net(t_and_y_and_v)
         return torch.cat((v, out[:, :input_dim-1]))
 
-    
-
-class AugmentedNeuralODE(nn.Module):
-    def __init__(self, augment_dim=augment_dim, use_second_order=False):
-        super(AugmentedNeuralODE, self).__init__()
-        self.use_second_order = use_second_order
-        
-        if use_second_order:
-            self.func = SecondOrderAugmentedODEFunc(hidden_dim=int(hidden_dim))
-        else:
-            self.func = AugmentedODEFunc(hidden_dim=int(hidden_dim), input_dim=augment_dim+input_dim)
-        
-        self.augment_dim = augment_dim
-
-    def forward(self, y0, t):
-        y_aug = torch.cat([y0, torch.zeros(y0.shape[0], self.augment_dim).to(y0)], dim=1)
-        
-        if self.use_second_order:
-            v_aug = torch.zeros_like(y_aug)
-            z0 = torch.cat((y_aug, v_aug), dim=1)
-        else:
-            z0 = y_aug
-        
-        if USE_BASIC_SOLVER:
-            out = basic_euler_ode_solver(self.func, z0, t)
-        else:
-            out = odeint(self.func, z0, t, method='euler')
-        
-        if self.use_second_order:
-            out = out[:, :, :input_dim-1]
-        
-        out = out.view(-1, t.shape[0], input_dim-1)
-        return out
     
 
 
@@ -535,15 +534,10 @@ Z_mlp = eval_model(mlp, "mlp")
 
 
 def chamfer_distance(set1, set2):
-    # Compute all pairwise distances between set1 and set2
     dist1 = np.sqrt(((set1[:, np.newaxis, :] - set2[np.newaxis, :, :]) ** 2).sum(axis=2))
     dist2 = np.sqrt(((set2[:, np.newaxis, :] - set1[np.newaxis, :, :]) ** 2).sum(axis=2))
-    
-    # For each point in set1, find the closest point in set2 and vice versa
     nearest_dist1 = np.min(dist1, axis=1)
     nearest_dist2 = np.min(dist2, axis=0)
-    
-    # Return the average of the nearest distances
     return np.mean(nearest_dist1) + np.mean(nearest_dist2)
 
 
@@ -674,11 +668,6 @@ correlation_coefficient_Z3_Z4 = np.corrcoef(Z3.flatten(), Z4.flatten())[0, 1]
 correlation_coefficient_Z5_Z4 = np.corrcoef(Z5.flatten(), Z4.flatten())[0, 1]
 
 
-
-
-
-
-# Calculate Chamfer Distance
 chamfer_Z1_Z4 = chamfer_distance(Z1, Z4)
 chamfer_Z2_Z4 = chamfer_distance(Z2, Z4)
 chamfer_Z3_Z4 = chamfer_distance(Z3, Z4)
