@@ -171,14 +171,14 @@ class Transformer(nn.Module):
             batch_t = t[start_idx:end_idx]
             
             pred_seq = y0.unsqueeze(0)
-            t0 = torch.ones(1, y0.shape[0], 1) * batch_t[0]
+            t0 = torch.ones(1, y0.shape[0], 1).to(y0.device) * batch_t[0]
             pred_seq = torch.cat([pred_seq, t0], dim=2)
             
             for j in range(batch_t.shape[0] - 1):
                 output = self.transformer_layer(pred_seq)
                 output = output[:, :, :-1]
                 next_t = batch_t[:j + 1]
-                next_t = torch.ones(1, y0.shape[0], 1) * next_t
+                next_t = torch.ones(1, y0.shape[0], 1).to(y0.device) * next_t
                 next_t = next_t.permute(2, 1, 0)
                 output = torch.cat([output, next_t], dim=2)
                 pred_seq = torch.cat([pred_seq, output[-1:]], dim=0)
@@ -199,7 +199,7 @@ class PositionalEncoding(nn.Module):
         seq_len = x.size(0)
         position = torch.arange(0, seq_len, dtype=torch.float).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, self.d_model, 2).float() * (-torch.log(torch.tensor(10000.0)) / self.d_model))
-        pe = torch.zeros(seq_len, self.d_model)
+        pe = torch.zeros(seq_len, self.d_model).to(x.device)
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0).transpose(0, 1)
@@ -374,7 +374,7 @@ class AugmentedNeuralODE(nn.Module):
         self.input_dim = input_dim
 
     def forward(self, y0, t):
-        y_aug = torch.cat([y0, torch.zeros(y0.shape[0], self.augment_dim).to(y0)], dim=1)
+        y_aug = torch.cat([y0, torch.zeros(y0.shape[0], self.augment_dim).to(y0.device)], dim=1)
         # if self.use_second_order:
         #     v_aug = torch.zeros_like(y_aug)
         #     z0 = torch.cat((y_aug, v_aug), dim=1)
