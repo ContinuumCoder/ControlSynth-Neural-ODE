@@ -27,6 +27,7 @@ augment_dim = 10
 USE_BASIC_SOLVER = False
 # if USE_BASIC_SOLVER = False, the code uses ode solver in torchdiffeq
 
+RETRAIN_MODELS = False
 
 def normalize_array(arr):
     min_vals = arr.min(axis=0)
@@ -119,7 +120,7 @@ current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 
 
-solver_path = current_directory + '/solver.py'
+solver_path = current_directory + '/../../src/solver.py'
 spec = importlib.util.spec_from_file_location("solver", solver_path)
 solver_module = importlib.util.module_from_spec(spec)
 sys.modules["solver"] = solver_module
@@ -293,25 +294,24 @@ class TwoConvLayer(nn.Module):
         return y
 
 
-
 class AugmentedODEFunc(nn.Module):
-    def __init__(self, hidden_dim=hidden_dim, num_layers=num_layers):
+    def __init__(self, hidden_dim, num_layers, input_dim, augment_dim):
         super(AugmentedODEFunc, self).__init__()
-        
-        layers = [nn.Linear(input_dim + augment_dim, hidden_dim), nn.Tanh()]
+        layers = [nn.Linear(input_dim + augment_dim + 1, hidden_dim), nn.Tanh()]
         for _ in range(num_layers - 1):
             layers.append(nn.Linear(hidden_dim, hidden_dim))
             layers.append(nn.Tanh())
-        layers.append(nn.Linear(hidden_dim, input_dim + augment_dim))
-        
+        layers.append(nn.Linear(hidden_dim, input_dim + augment_dim + 1))
         self.net = nn.Sequential(*layers)
+        self.output_dim = input_dim + augment_dim
 
-    def forward(self, t, y):
-        t_vec = torch.ones(y.shape[0], 1).to(device) * t
+    def forward(self, t, z):
+        y = z
+        t_vec = torch.ones(y.shape[0], 1).to(y.device) * t
         t_and_y = torch.cat([t_vec, y], 1)
-        y = self.net(t_and_y)[:, :input_dim-1]
-
-        return y
+        out = self.net(t_and_y)
+        out = out[:, :self.output_dim]
+        return out
 
 
 class AugmentedNeuralODE(nn.Module):
@@ -322,7 +322,7 @@ class AugmentedNeuralODE(nn.Module):
         if use_second_order:
             self.func = SecondOrderAugmentedODEFunc(hidden_dim=int(hidden_dim))
         else:
-            self.func = ODEFunc(hidden_dim=int(hidden_dim), input_dim=augment_dim+input_dim)
+            self.func = AugmentedODEFunc(hidden_dim, num_layers, input_dim-1, augment_dim)
         
         self.augment_dim = augment_dim
 
@@ -339,10 +339,8 @@ class AugmentedNeuralODE(nn.Module):
             out = basic_euler_ode_solver(self.func, z0, t)
         else:
             out = odeint(self.func, z0, t, method='euler')
-        
-        if self.use_second_order:
-            out = out[:, :, :input_dim-1]
-        
+
+        out = out[:, :, :input_dim-1]
         out = out.view(-1, t.shape[0], input_dim-1)
         return out
 
@@ -395,8 +393,6 @@ class MLP(nn.Module):
 
 
 
-
-
 def train(model, model_name):
     optimizer = optim.Adam(model.parameters(), lr=lr)  
     for epoch in range(num_epochs):
@@ -425,12 +421,6 @@ def train(model, model_name):
                 print(model_name + " Test MSE: ", mse, "\n")
 
 
-
-
-
-
-
-
 criterion = nn.MSELoss()
 ode = NeuralODE().to(device)
 csode = CSNeuralODE().to(device)
@@ -438,31 +428,35 @@ mlp = MLP().to(device)
 augode = AugmentedNeuralODE().to(device)
 csodecnn = CSNeuralODE_CNN().to(device)
 
-print("\nTrain CSODE:")
-train(csode, "ControlSynth_Neural_ODE")
-torch.save(csode, "hr_csode.pth")
-csode = torch.load("hr_csode.pth").to(device)
+if RETRAIN_MODELS:
+    print("\nTrain CSODE:")
+    train(csode, "ControlSynth_Neural_ODE")
+    torch.save(csode, os.path.join(current_directory, "hr_csode.pth"))
+csode = torch.load(os.path.join(current_directory, "hr_csode.pth")).to(device)
 
-print("\nTrain CSODE CNN:")
-train(csodecnn, "ControlSynth_Neural_ODE_CNN")
-torch.save(csodecnn, "hr_csode_cnn.pth")
-csodecnn = torch.load("hr_csode_cnn.pth").to(device)
+if RETRAIN_MODELS:
+    print("\nTrain CSODE CNN:")
+    train(csodecnn, "ControlSynth_Neural_ODE_CNN")
+    torch.save(csodecnn, os.path.join(current_directory, "hr_csode_cnn.pth"))
+csodecnn = torch.load(os.path.join(current_directory, "hr_csode_cnn.pth")).to(device)
 
+if RETRAIN_MODELS:
+    print("\nTrain AUGODE:")
+    train(augode, "Augmented_Neural_ODE")
+    torch.save(augode, os.path.join(current_directory, "hr_augode.pth"))
+augode = torch.load(os.path.join(current_directory, "hr_augode.pth")).to(device)
 
-print("\nTrain AUGODE:")
-train(augode, "Augmented_Neural_ODE")
-torch.save(augode, "hr_augode.pth")
-augode = torch.load("hr_augode.pth").to(device)
+if RETRAIN_MODELS:
+    print("\nTrain ODE:")
+    train(ode, "Neural_ODE")
+    torch.save(ode, os.path.join(current_directory, "hr_ode.pth"))
+ode = torch.load(os.path.join(current_directory, "hr_ode.pth")).to(device)
 
-print("\nTrain ODE:")
-train(ode, "Neural_ODE")
-torch.save(ode, "hr_ode.pth")
-ode = torch.load("hr_ode.pth").to(device)
-
-print("\nTrain MLP:")
-train(mlp, "MLPs")
-torch.save(mlp, "hr_mlp.pth")
-mlp = torch.load("hr_mlp.pth").to(device)
+if RETRAIN_MODELS:
+    print("\nTrain MLP:")
+    train(mlp, "MLPs")
+    torch.save(mlp, os.path.join(current_directory, "hr_mlp.pth"))
+mlp = torch.load(os.path.join(current_directory, "hr_mlp.pth")).to(device)
 
 
 
@@ -605,7 +599,7 @@ with torch.no_grad():
                         zaxis=dict(tickfont=dict(size=13))
                     ),
                     font=dict(
-                        family="Times New Roman, Times, serif",
+                        family="Times New Roman, Times, serif",  # 设置字体为Times New Roman
                         size=18.5,
                         color="black"
                     )           
