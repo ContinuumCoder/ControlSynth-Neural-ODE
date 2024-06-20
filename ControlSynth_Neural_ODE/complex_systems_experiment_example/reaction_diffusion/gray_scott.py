@@ -25,8 +25,7 @@ import sys
 current_file_path = os.path.abspath(__file__)
 current_directory = os.path.dirname(current_file_path)
 
-
-solver_path = current_directory + '/solver.py'
+solver_path = current_directory + '/../../src/solver.py'
 spec = importlib.util.spec_from_file_location("solver", solver_path)
 solver_module = importlib.util.module_from_spec(spec)
 sys.modules["solver"] = solver_module
@@ -302,33 +301,28 @@ class SecondOrderAugmentedODEFunc(nn.Module):
         out = self.net(t_and_y_and_v)
         return torch.cat((v, out[:, :input_dim-1]))
 
-    
+
 class AugmentedODEFunc(nn.Module):
-    def __init__(self, hidden_dim=hidden_dim, num_layers=num_layers, use_second_order=False):
+    def __init__(self, hidden_dim, num_layers, input_dim, augment_dim):
         super(AugmentedODEFunc, self).__init__()
-        self.use_second_order = use_second_order
-        
-        if use_second_order:
-            self.func = SecondOrderAugmentedODEFunc(hidden_dim=hidden_dim, num_layers=num_layers)
-        else:
-            layers = [nn.Linear(input_dim + augment_dim, hidden_dim), nn.Tanh()]
-            for _ in range(num_layers - 1):
-                layers.append(nn.Linear(hidden_dim, hidden_dim))
-                layers.append(nn.Tanh())
-            layers.append(nn.Linear(hidden_dim, input_dim + augment_dim))
-            self.net = nn.Sequential(*layers)
+        layers = [nn.Linear(input_dim + augment_dim + 1, hidden_dim), nn.Tanh()]
+        for _ in range(num_layers - 1):
+            layers.append(nn.Linear(hidden_dim, hidden_dim))
+            layers.append(nn.Tanh())
+        layers.append(nn.Linear(hidden_dim, input_dim + augment_dim + 1))
+        self.net = nn.Sequential(*layers)
+        self.output_dim = input_dim + augment_dim
 
     def forward(self, t, z):
-        if self.use_second_order:
-            out = self.func(t, z)
-        else:
-            y = z
-            t_vec = torch.ones(y.shape[0], 1).to(device) * t
-            t_and_y = torch.cat([t_vec, y], 1)
-            out = self.net(t_and_y)[:, :input_dim-1]
+        y = z
+        t_vec = torch.ones(y.shape[0], 1).to(y.device) * t
+        t_and_y = torch.cat([t_vec, y], 1)
+        out = self.net(t_and_y)
+        out = out[:, :self.output_dim]
         return out
 
-    
+
+
 class AugmentedNeuralODE(nn.Module):
     def __init__(self, augment_dim=augment_dim, use_second_order=False):
         super(AugmentedNeuralODE, self).__init__()
@@ -337,7 +331,7 @@ class AugmentedNeuralODE(nn.Module):
         if use_second_order:
             self.func = SecondOrderAugmentedODEFunc(hidden_dim=int(hidden_dim))
         else:
-            self.func = AugmentedODEFunc(hidden_dim=int(hidden_dim), input_dim=augment_dim+input_dim)
+            self.func = AugmentedODEFunc(hidden_dim, num_layers, input_dim-1, augment_dim)
         
         self.augment_dim = augment_dim
 
@@ -354,13 +348,10 @@ class AugmentedNeuralODE(nn.Module):
             out = basic_euler_ode_solver(self.func, z0, t)
         else:
             out = odeint(self.func, z0, t, method='euler')
-        
-        if self.use_second_order:
-            out = out[:, :, :input_dim-1]
-        
+
+        out = out[:, :, :input_dim-1]
         out = out.view(-1, t.shape[0], input_dim-1)
         return out
-
 
 
 
@@ -427,15 +418,15 @@ def eval_model(model, model_name):
 
 if initial_mode:
     train_mode = True
-    # dataset = GrayScottDataset(n_seq=n_seq)
+    dataset = GrayScottDataset(n_seq=n_seq)
     ode = NeuralODE().to(device)
     csode = CSNeuralODE().to(device)
     augode = AugmentedNeuralODE().to(device)
     mlp = MLP().to(device)
-    torch.save(mlp, current_directory+"\mlp.pth")
-    torch.save(ode, current_directory+"\ode.pth")
-    torch.save(augode, current_directory+"\augode.pth")
-    torch.save(csode, current_directory+"\csode.pth")
+    torch.save(mlp, current_directory+"/mlp.pth")
+    torch.save(ode, current_directory+"/ode.pth")
+    torch.save(augode, current_directory+"/augode.pth")
+    torch.save(csode, current_directory+"/csode.pth")
 
 sol_fine = np.load("sol.npy")
 print(sol_fine.shape)
@@ -461,20 +452,20 @@ class CombinedLoss(nn.Module):
 criterion = CombinedLoss(weight_mse=0, weight_l1=1).to(device)
 
 if train_mode:
-    csode = torch.load(current_directory+"\csode.pth").to(device)
+    csode = torch.load(current_directory+"/csode.pth").to(device)
     train(csode, "csode")
-    torch.save(csode, current_directory+"\csode.pth")
+    torch.save(csode, current_directory+"/csode.pth")
 
-csode = torch.load(current_directory+"\csode.pth").to(device)
+csode = torch.load(current_directory+"/csode.pth").to(device)
 Z_csode = eval_model(csode, "csode")
 
 print()
 
 if train_mode:
-    ode = torch.load(current_directory+"\ode.pth").to(device)
+    ode = torch.load(current_directory+"/ode.pth").to(device)
     train(ode, "ode")
-    torch.save(ode, current_directory+"\ode.pth")
-ode = torch.load(current_directory+"\ode.pth").to(device)
+    torch.save(ode, current_directory+"/ode.pth")
+ode = torch.load(current_directory+"/ode.pth").to(device)
 Z_ode = eval_model(ode, "ode")
 
 print()
@@ -483,20 +474,20 @@ print()
 
 
 if train_mode:
-    augode = torch.load(current_directory+"\augode.pth").to(device)
+    augode = torch.load(current_directory+"/augode.pth").to(device)
     train(augode, "augode")
-    torch.save(augode, current_directory+"\augode.pth")
+    torch.save(augode, current_directory+"/augode.pth")
 
-augode = torch.load(current_directory+"\augode.pth").to(device)
+augode = torch.load(current_directory+"/augode.pth").to(device)
 Z_augode = eval_model(augode, "augode")
 
 
 
 if train_mode:
-    mlp = torch.load(current_directory+"\mlp.pth").to(device)
+    mlp = torch.load(current_directory+"/mlp.pth").to(device)
     train(mlp, "mlp")
-    torch.save(mlp, current_directory+"\mlp.pth")
-mlp = torch.load(current_directory+"\mlp.pth").to(device)
+    torch.save(mlp, current_directory+"/mlp.pth")
+mlp = torch.load(current_directory+"/mlp.pth").to(device)
 Z_mlp = eval_model(mlp, "mlp")
 
 def chamfer_distance(set1, set2):
@@ -536,7 +527,7 @@ vmax = mean_val + std_val * 1.75
 
 
 fig = make_subplots(rows=2, cols=3,
-                    column_widths=[0.33, 0.33, 0.33], 
+                    column_widths=[0.33, 0.33, 0.33],  # 控制每列的宽度
                     specs=[[{'type': 'surface', 'colspan': 2}, {'type': 'surface', 'colspan': 2}, None],
                            [{'type': 'surface'}, {'type': 'surface'}, {'type': 'surface'}]],
                     subplot_titles=('Initial Condition', 'Prediction Ground Truth',
@@ -582,7 +573,7 @@ fig.update_layout(    title={
                     },
                     
                     font=dict(
-                        family="Times New Roman, Times, serif",
+                        family="Times New Roman, Times, serif",  # 设置字体为Times New Roman
                         size=17.5,
                         color="black"
                     )          
@@ -645,8 +636,6 @@ chamfer_Z1_Z4 = chamfer_distance(Z1, Z4)
 chamfer_Z2_Z4 = chamfer_distance(Z2, Z4)
 chamfer_Z3_Z4 = chamfer_distance(Z3, Z4)
 chamfer_Z5_Z4 = chamfer_distance(Z5, Z4)
-
-
 
 
 

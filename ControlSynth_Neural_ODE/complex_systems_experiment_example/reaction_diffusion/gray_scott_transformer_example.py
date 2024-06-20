@@ -447,8 +447,6 @@ def chamfer_distance(set1, set2):
 X = np.linspace(0, L, N_fine)
 Y = np.linspace(0, L, N_fine)
 Z1 = Z_transformer_ode[:, :, 0] 
-# Z2 = Z_augode[:, :, 0]  
-# Z3 = Z_csode[:, :, 0] 
 Z4 = sol_fine[-1][:, :, 0] 
 Z5 = Z_transformer[:, :, 0] 
 Z_initial = sol_fine[-test_len][:, :, 0] 
@@ -457,68 +455,24 @@ Z_initial = sol_fine[-test_len][:, :, 0]
 
 
 mse_Z1_Z4 = mean_squared_error(Z1, Z4)
-# mse_Z2_Z4 = mean_squared_error(Z2, Z4)
-# mse_Z3_Z4 = mean_squared_error(Z3, Z4)
 mse_Z5_Z4 = mean_squared_error(Z5, Z4)
 
 
 mae_Z1_Z4 = mean_absolute_error(Z1, Z4)
-# mae_Z2_Z4 = mean_absolute_error(Z2, Z4)
-# mae_Z3_Z4 = mean_absolute_error(Z3, Z4)
 mae_Z5_Z4 = mean_absolute_error(Z5, Z4)
 
 
 max_err_Z1_Z4 = max_error(Z1.ravel(), Z4.ravel())
-# max_err_Z2_Z4 = max_error(Z2.ravel(), Z4.ravel())
-# max_err_Z3_Z4 = max_error(Z3.ravel(), Z4.ravel())
 max_err_Z5_Z4 = max_error(Z5.ravel(), Z4.ravel())
 
 ssim_Z1_Z4 = ssim(Z1, Z4, data_range=Z4.max() - Z4.min())
-# ssim_Z2_Z4 = ssim(Z2, Z4, data_range=Z4.max() - Z4.min())
-# ssim_Z3_Z4 = ssim(Z3, Z4, data_range=Z4.max() - Z4.min())
 ssim_Z5_Z4 = ssim(Z5, Z4, data_range=Z4.max() - Z4.min())
 
 correlation_coefficient_Z1_Z4 = np.corrcoef(Z1.flatten(), Z4.flatten())[0, 1]
-# correlation_coefficient_Z2_Z4 = np.corrcoef(Z2.flatten(), Z4.flatten())[0, 1]
-# correlation_coefficient_Z3_Z4 = np.corrcoef(Z3.flatten(), Z4.flatten())[0, 1]
 correlation_coefficient_Z5_Z4 = np.corrcoef(Z5.flatten(), Z4.flatten())[0, 1]
 
 
 chamfer_Z1_Z4 = chamfer_distance(Z1, Z4)
-# chamfer_Z2_Z4 = chamfer_distance(Z2, Z4)
-# chamfer_Z3_Z4 = chamfer_distance(Z3, Z4)
 chamfer_Z5_Z4 = chamfer_distance(Z5, Z4)
 
 
-
-
-
-print("MSE between Neural ODE Prediction and GT:", mse_Z1_Z4)
-# print("MSE between Augmented Neural ODE Prediction and GT:", mse_Z2_Z4)
-# print("MSE between ControlSynth Neural ODE Prediction and GT:", mse_Z3_Z4)
-print("MSE between MLP Prediction and GT:", mse_Z5_Z4)
-print()
-print("MAE between Neural ODE Prediction and GT:", mae_Z1_Z4)
-# print("MAE between Augmented Neural ODE Prediction and GT:", mae_Z2_Z4)
-# print("MAE between ControlSynth Neural ODE Prediction and GT:", mae_Z3_Z4)
-print("MAE between MLP Prediction and GT:", mae_Z5_Z4)
-print()
-print("Max Error between Neural ODE Prediction and GT:", max_err_Z1_Z4)
-# print("Max Error between Augmented Neural ODE Prediction and GT:", max_err_Z2_Z4)
-# print("Max Error between ControlSynth Neural ODE Prediction and GT:", max_err_Z3_Z4)
-print("Max Error between MLP Prediction and GT:", max_err_Z5_Z4)
-print()
-print("SSIM between Neural ODE Prediction and GT:", ssim_Z1_Z4)
-# print("SSIM between Augmented Neural ODE Prediction and GT:", ssim_Z2_Z4)
-# print("SSIM between ControlSynth Neural ODE Prediction and GT:", ssim_Z3_Z4)
-print("SSIM between MLP Prediction and GT:", ssim_Z5_Z4)
-print()
-print("Correlation Coefficient between Neural ODE Prediction and GT:", correlation_coefficient_Z1_Z4)
-# print("Correlation Coefficient between Augmented Neural ODE Prediction and GT:", correlation_coefficient_Z2_Z4)
-# print("Correlation Coefficient between ControlSynth Neural ODE Prediction and GT:", correlation_coefficient_Z3_Z4)
-print("Correlation Coefficient between MLP Prediction and GT:", correlation_coefficient_Z5_Z4)
-print()
-print("Chamfer Distance between Neural ODE Prediction and GT:", chamfer_Z1_Z4)
-# print("Chamfer Distance between Augmented Neural ODE Prediction and GT:", chamfer_Z2_Z4)
-# print("Chamfer Distance between ControlSynth Neural ODE Prediction and GT:", chamfer_Z3_Z4)
-print("Chamfer Distance between MLP Prediction and GT:", chamfer_Z5_Z4)
